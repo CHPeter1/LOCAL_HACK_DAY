@@ -1,0 +1,174 @@
+---
+title: "ANOVA TESTS"
+author: "NGAIRA PETER"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(readr)
+require(tidyverse)
+require(magrittr)
+require(ggplot2)
+require(gtsummary)
+require(reshape2)
+require(officer)
+require(deSolve)
+require(DiagrammeR)
+```
+
+```{r}
+##ONE WAY ANOVA
+#ANOVA IS USED TO TEST 2 OR MORE STATISTICAL MEANS TO PROVE WHETHER THEY STATISTICALLY SIGNIFICANT
+#Analysis of variance compares the between variance and the within different group variance
+#If the between variance if larger than the within variance, the group variance is declared to be different 
+#It is tested using the ratio Variance between / variance within.
+
+# Importing online data from penguins
+# Loading data
+require(palmerpenguins)
+require(tidyverse)
+
+#focusing only on the flipper length and the species using pipes
+anova<- penguins %>% 
+  select(species, flipper_length_mm)
+
+# Saving the selected data set into the directory
+write_excel_csv(anova, "anova.xlsx")
+
+# Summary of the selected data set
+summary(anova)
+#Flipper length varies from 172 to 231 mm, with a mean of 200.9 mm. There are respectively 152, 68 and 124 penguins of the species Adelie, Chinstrap and Gentoo.
+```
+
+```{r}
+# A ggplot of Flipper_length_mm dispersion over Species
+library(ggplot2)
+ggplot(anova)+
+aes(x=species, y= flipper_length_mm, color=species)+
+  geom_jitter()+
+  theme(legend.position = "none")
+# Here, the factor is the species variable which contains 3 modalities or groups (Adelie, Chinstrap and Gentoo).
+```
+
+```{r}
+#ANOVA CALCULATIONS IN PREPARATION TO TEST NORMALITY ASSUMPTION
+res_aov <- aov(flipper_length_mm ~ species, data= anova)
+```
+
+```{r}
+# Visual check of Normality
+#Combine plots
+par(mfrow= c(1,2))
+
+#Histogram of the residuals
+hist(res_aov$residuals)
+
+# QQ plot of the residuals
+library(car)
+qqPlot(res_aov$residuals,id= FALSE)
+# From the histogram and QQ-plot above, we can already see that the normality assumption seems to be met. Indeed, the histogram roughly form a bell curve, indicating that the residuals follow a normal distribution. Furthermore, points in the QQ-plots roughly follow the straight line and most of them are within the confidence bands, also indicating that residuals follow approximately a normal distribution.
+```
+
+
+
+```{r}
+# Shapiro test of normality
+# Assumptions 
+#1. H0: data come from a normal distribution
+#2. H1: data do not come from a normal distribution
+
+shapiro.test(res_aov$residuals)
+#P-value of the Shapiro-Wilk test on the residuals is larger than the usual significance level of α=5%, so we do not reject the hypothesis that residuals follow a normal distribution (p-value = 0.261).
+# residuals are the distance between the actual value of Y and the mean value of Y for a specific value of X
+```
+
+```{r}
+## Equality of variances
+#Assuming residuals follow a normal distribution, Equality is tetsted using either boxplot or dotplot
+#BOXPLOT
+boxplot(flipper_length_mm ~ species, data=anova)
+#Dotplot
+require(lattice)
+dotplot(flipper_length_mm ~ species, data= anova)
+#Both the boxplot and the dotplot show a similar variance for the different species. In the boxplot, this can be seen by the fact that the boxes and the whiskers have a comparable size for all species.
+
+#There are a couple of outliers as shown by the points outside the whiskers, but this does not change the fact that the dispersion is more or less the same between the different species.
+```
+
+```{r}
+#Like the normality assumption, if you feel that the visual approach is not sufficient, you can formally test for equality of the variances with a Levene’s or Bartlett’s test. Notice that the Levene’s test is less sensitive to departures from normal distribution than the Bartlett’s test.
+
+#The null and alternative hypothesis for both tests are:
+
+#1. H_0: variances are equal
+#2. H_1: at least one variance is different.
+
+#Levennes test
+leveneTest(flipper_length_mm ~ species, data=anova)
+#The p-value being larger than the significance level of 0.05, we do not reject the null hypothesis, so we cannot reject the hypothesis that variances are equal between species (p-value = 0.719).
+
+#This result is also in line with the visual approach, so the homogeneity of variances is met both visually and formally.
+```
+
+```{r}
+# Outlier detection using bxplots 
+par(mfrow=c(1,2))
+library(ggplot2)
+ggplot(anova)+ aes(x= species, y= flipper_length_mm, color=species)+
+  geom_boxplot()+ theme(legend.position = 'none')
+
+#There is one outlier in the group Adelie, as defined by the interquartile range criterion. This point is, however, not seen as a significant outlier so we can assume that the assumption of no significant outliers is met.
+
+```
+
+```{r}
+#Preliminaries analysis
+#A good practice before actually performing the ANOVA in R is to visualize the data in relation to the research question. The best way to do so is to draw and compare boxplots of the quantitative variable flipper_length_mm for each species.
+
+ggplot(anova)+
+  aes(x= species, y = flipper_length_mm, color= species)+
+  geom_boxplot()+
+  theme(legend.position = "right")
+#The boxplots above show that, at least for our sample, penguins of the species Gentoo seem to have the biggest flipper, and Adelie species the smallest flipper.
+
+#Besides a boxplot for each species, it is also a good practice to compute some descriptive statistics such as the mean and standard deviation by species.
+
+library(dplyr)
+group_by(anova, species) %>% 
+  summarise(
+    mean= mean(flipper_length_mm, na.rm = TRUE),
+    sd= sd(flipper_length_mm, na.rm = TRUE)
+  )
+#Mean is also the lowest for Adelie and highest for Gentoo
+```
+
+```{r}
+## “Is the length of the flippers different between the 3 species of penguins?”.
+# This can be achieved through performance of several tests 
+# 1. One way ANOVA test
+oneway.test(flipper_length_mm ~ species, data = anova, var.equal = TRUE)
+
+# 2. With the summary() and aov() functions:
+res_aov <- aov(flipper_length_mm ~ species, data = anova)
+summary(res_aov)
+
+#As you can see from the two outputs above, the test statistic (F = in the first method and F value in the second one) and the p-value (p-value in the first method and Pr(>F) in the second one) are exactly the same for both methods, which means that in case of equal variances, results and conclusions will be unchanged.
+
+#The advantage of the first method is that it is easy to switch from the ANOVA (used when variances are equal) to the Welch ANOVA (used when variances are unequal). This can be done by replacing var.equal = TRUE by var.equal = FALSE, as presented below:
+```
+```{r}
+#Welch ANOVA
+oneway.test(flipper_length_mm ~ species, data = anova, var.equal = FALSE)
+```
+
+```{r}
+##Interpretations of ANOVA results
+#Given that the p-value is smaller than 0.05, we reject the null hypothesis, so we reject the hypothesis that all means are equal. Therefore, we can conclude that at least one species is different than the others in terms of flippers length (p-value < 2.2e-16).
+```
+
+```{r}
+require(report)
+report(res_aov)
+```
